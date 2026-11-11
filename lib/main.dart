@@ -118,6 +118,9 @@ class PaperReaderApp extends StatelessWidget {
 
 // ---------------------------------------------------------------- bookcase
 
+Color _shade(Color c, double a) =>
+    a >= 0 ? Color.lerp(c, Colors.white, a)! : Color.lerp(c, Colors.black, -a)!;
+
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
 
@@ -133,7 +136,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
     Color(0xFF5B3A6B),
     Color(0xFF8A5A1E),
     Color(0xFF2B3A67),
+    Color(0xFF6B1E3A),
+    Color(0xFF2F5D50),
   ];
+  static const double _shelfHeight = 250;
+  static const double _boardHeight = 40;
 
   Future<void> _addPdf() async {
     final res = await FilePicker.platform.pickFiles(
@@ -184,70 +191,159 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (mounted) setState(() {});
   }
 
-  Widget _cover(Book b) {
+  double _spineWidth(Book b) {
+    if (b.pages > 0) return (40 + b.pages * 0.12).clamp(46.0, 78.0).toDouble();
+    return 48.0 + (b.id.hashCode.abs() % 5) * 5.0;
+  }
+
+  double _spineHeight(Book b) => 150.0 + (b.id.hashCode.abs() % 5) * 10.0;
+
+  Widget _spine(Book b) {
     final color = _coverColors[b.id.hashCode.abs() % _coverColors.length];
+    final w = _spineWidth(b);
+    final h = _spineHeight(b);
+    final gold = const Color(0xFFE2C275);
     return GestureDetector(
       onTap: () => _open(b),
       onLongPress: () => _confirmRemove(b),
       child: Container(
-        height: 180,
-        margin: const EdgeInsets.symmetric(horizontal: 5),
-        padding: const EdgeInsets.all(8),
+        width: w,
+        height: h,
+        margin: const EdgeInsets.only(right: 3),
         decoration: BoxDecoration(
-          color: color,
           borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(4),
-            topRight: Radius.circular(8),
+            topLeft: Radius.circular(3),
+            topRight: Radius.circular(3),
+          ),
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              _shade(color, -0.55),
+              color,
+              _shade(color, 0.18),
+              color,
+              _shade(color, -0.6),
+            ],
+            stops: const [0.0, 0.2, 0.42, 0.72, 1.0],
           ),
           boxShadow: const [
-            BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(2, 0)),
+            BoxShadow(color: Colors.black87, blurRadius: 6, offset: Offset(3, 2)),
           ],
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Stack(
           children: [
-            Expanded(
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              height: 6,
+              child: Container(color: _shade(color, -0.35)),
+            ),
+            Positioned(left: 0, right: 0, top: 14, height: 3, child: Container(color: gold)),
+            Positioned(left: 0, right: 0, top: 20, height: 1.5, child: Container(color: gold)),
+            Positioned(left: 0, right: 0, bottom: 14, height: 3, child: Container(color: gold)),
+            Positioned(left: 0, right: 0, bottom: 20, height: 1.5, child: Container(color: gold)),
+            Positioned.fill(
+              top: 26,
+              bottom: 26,
               child: Center(
-                child: Text(
-                  b.title,
-                  textAlign: TextAlign.center,
-                  maxLines: 5,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                child: RotatedBox(
+                  quarterTurns: 1,
+                  child: Text(
+                    b.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      shadows: [Shadow(color: Colors.black54, blurRadius: 2)],
+                    ),
                   ),
                 ),
               ),
             ),
-            if (b.pages > 0)
-              Text(
-                'Page ${b.lastPage + 1}/${b.pages}',
-                style: const TextStyle(color: Colors.white70, fontSize: 15),
-              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _board() => Container(
-        height: 16,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF9A6B43), Color(0xFF5E3D22)],
+  List<List<Book>> _rows(double avail) {
+    final rows = <List<Book>>[];
+    var cur = <Book>[];
+    var used = 0.0;
+    for (final b in Store.books) {
+      final w = _spineWidth(b) + 3;
+      if (used + w > avail && cur.isNotEmpty) {
+        rows.add(cur);
+        cur = [];
+        used = 0;
+      }
+      cur.add(b);
+      used += w;
+    }
+    if (cur.isNotEmpty) rows.add(cur);
+    while (rows.length < 3) {
+      rows.add([]);
+    }
+    return rows;
+  }
+
+  Widget _shelf(List<Book> books, {String? hint}) {
+    return SizedBox(
+      height: _shelfHeight,
+      child: Stack(
+        children: [
+          // back wall of the bookcase, darker at the top (shadow of shelf above)
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF120A05), Color(0xFF2E1D10), Color(0xFF3A2515)],
+                ),
+              ),
+            ),
           ),
-        ),
-      );
+          if (hint != null)
+            Positioned(
+              left: 16,
+              right: 16,
+              top: 40,
+              child: Text(
+                hint,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70, fontSize: 20),
+              ),
+            ),
+          Positioned(
+            left: 10,
+            right: 0,
+            bottom: _boardHeight * 0.58 + 4,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: books.map(_spine).toList(),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: _boardHeight,
+            child: CustomPaint(painter: _BoardPainter()),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final rowCount = max(3, (Store.books.length / 3).ceil() + 1);
     return Scaffold(
-      backgroundColor: const Color(0xFF3A2616),
+      backgroundColor: const Color(0xFF1B110A),
       appBar: AppBar(
         title: const Text('My Bookcase', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
@@ -270,41 +366,103 @@ class _LibraryScreenState extends State<LibraryScreen> {
         icon: const Icon(Icons.add),
         label: const Text('Add PDF', style: TextStyle(fontSize: 20)),
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(10, 16, 10, 100),
-        itemCount: rowCount,
-        itemBuilder: (c, row) {
-          final start = row * 3;
-          final slots = <Widget>[];
-          for (var i = start; i < start + 3; i++) {
-            slots.add(Expanded(
-              child: i < Store.books.length
-                  ? _cover(Store.books[i])
-                  : const SizedBox(height: 180),
-            ));
-          }
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 18),
-            child: Column(
-              children: [
-                if (row == 0 && Store.books.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      'Your shelf is empty.\nTap "Add PDF" to put your first book here.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white, fontSize: 20),
-                    ),
-                  ),
-                Row(crossAxisAlignment: CrossAxisAlignment.end, children: slots),
-                _board(),
+      body: LayoutBuilder(builder: (context, box) {
+        const outer = 10.0;
+        const frame = 16.0;
+        final avail = box.maxWidth - 2 * outer - 2 * frame - 10;
+        final rows = _rows(avail);
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(outer, 12, outer, 110),
+          child: Container(
+            padding: const EdgeInsets.all(frame),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              gradient: const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Color(0xFF4A2E18),
+                  Color(0xFF8A5A33),
+                  Color(0xFF6A4223),
+                  Color(0xFF8A5A33),
+                  Color(0xFF4A2E18),
+                ],
+              ),
+              boxShadow: const [
+                BoxShadow(color: Colors.black87, blurRadius: 14, offset: Offset(0, 6)),
               ],
             ),
-          );
-        },
-      ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: Column(
+                children: [
+                  for (var i = 0; i < rows.length; i++)
+                    _shelf(
+                      rows[i],
+                      hint: (i == 0 && Store.books.isEmpty)
+                          ? 'Your bookcase is empty.\nTap "Add PDF" to put your first book here.'
+                          : null,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }),
     );
   }
+}
+
+/// A wooden shelf board seen slightly from above: lit top face + darker front edge.
+class _BoardPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final topH = size.height * 0.58;
+    const inset = 16.0;
+    final topRect = Rect.fromLTWH(0, 0, size.width, topH);
+    final top = Path()
+      ..moveTo(inset, 0)
+      ..lineTo(size.width - inset, 0)
+      ..lineTo(size.width, topH)
+      ..lineTo(0, topH)
+      ..close();
+    canvas.drawPath(
+      top,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF6B4527), Color(0xFFB98350)],
+        ).createShader(topRect),
+    );
+    final front = Rect.fromLTWH(0, topH, size.width, size.height - topH);
+    canvas.drawRect(
+      front,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF9A6A3E), Color(0xFF4A2E18)],
+        ).createShader(front),
+    );
+    canvas.drawLine(
+      Offset(0, topH),
+      Offset(size.width, topH),
+      Paint()
+        ..color = const Color(0x66FFFFFF)
+        ..strokeWidth = 1.5,
+    );
+    final grain = Paint()
+      ..color = const Color(0x22000000)
+      ..strokeWidth = 1;
+    for (var i = 1; i < 4; i++) {
+      final y = topH + front.height * i / 4;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), grain);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ---------------------------------------------------------------- reader
@@ -317,25 +475,37 @@ class ReaderScreen extends StatefulWidget {
   State<ReaderScreen> createState() => _ReaderScreenState();
 }
 
-class _ReaderScreenState extends State<ReaderScreen> {
+class _ReaderScreenState extends State<ReaderScreen>
+    with SingleTickerProviderStateMixin {
+  static const _paperEdge = EdgeInsets.symmetric(horizontal: 8, vertical: 10);
+
   PdfDocument? _doc;
-  PageController? _pc;
   final AudioPlayer _player = AudioPlayer();
   final Map<int, Future<Uint8List?>> _cache = {};
-  int _page = 0;
+  late final AnimationController _anim =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 420));
+  Animatable<double>? _tween;
+
+  int _page = 0; // page shown when nothing is turning
+  int? _t; // index of the page that is currently turning
+  double _p = 0; // 0 = page flat on the right, 1 = fully turned over
   double? _drag;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    _anim.addListener(() {
+      final tw = _tween;
+      if (tw != null) setState(() => _p = tw.evaluate(_anim));
+    });
     _openDoc();
   }
 
   Future<void> _openDoc() async {
     try {
       final d = await PdfDocument.openFile(widget.book.path);
-      final start = widget.book.lastPage.clamp(0, max(0, d.pagesCount - 1)).toInt();
+      final start = min(max(widget.book.lastPage, 0), max(0, d.pagesCount - 1));
       widget.book.pages = d.pagesCount;
       await Store.save();
       await Store.markReadToday();
@@ -343,7 +513,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
       setState(() {
         _doc = d;
         _page = start;
-        _pc = PageController(initialPage: start);
       });
     } catch (e) {
       if (mounted) setState(() => _error = 'Sorry, this PDF could not be opened.');
@@ -365,16 +534,32 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  void _changed(int i) {
-    if (i == _page) return;
-    _page = i;
-    widget.book.lastPage = i;
+  void _commit(int newPage) {
+    _t = null;
+    _p = 0;
+    _page = newPage;
+    widget.book.lastPage = newPage;
     Store.save();
     Store.markReadToday();
-    _player.play(AssetSource('page.wav'));
-    _cache.removeWhere((k, _) => (k - i).abs() > 4);
+    _cache.removeWhere((k, _) => (k - newPage).abs() > 4);
     setState(() {});
   }
+
+  void _settle(double target) {
+    final t = _t;
+    if (t == null) return;
+    final newPage = target >= 1.0 ? t + 1 : t;
+    if (newPage != _page) _player.play(AssetSource('page.wav'));
+    _tween = Tween<double>(begin: _p, end: target)
+        .chain(CurveTween(curve: Curves.easeOutCubic));
+    _anim.forward(from: 0).whenComplete(() {
+      if (!mounted) return;
+      _tween = null;
+      _commit(newPage);
+    });
+  }
+
+  double _c01(double v) => v < 0 ? 0 : (v > 1 ? 1 : v);
 
   Widget _image(int i) {
     return FutureBuilder<Uint8List?>(
@@ -392,47 +577,150 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  /// One page that folds away from its left edge like a real page being turned.
-  Widget _pageTile(int i) {
-    final pc = _pc!;
-    return AnimatedBuilder(
-      animation: pc,
-      builder: (c, _) {
-        double v = 0;
-        if (pc.hasClients && pc.position.haveDimensions) {
-          v = (pc.page ?? i.toDouble()) - i;
-        }
-        final t = v.clamp(0.0, 1.0);
-        final m = Matrix4.identity()
-          ..setEntry(3, 2, 0.0012)
-          ..rotateY(-t * 1.1);
-        return Transform(
-          alignment: Alignment.centerLeft,
-          transform: m,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                color: Colors.white,
-                child: _image(i),
-              ),
-              if (v != 0)
-                IgnorePointer(
-                  child: Container(
-                    color: Colors.black.withOpacity(v.abs().clamp(0.0, 1.0) * 0.35),
+  Widget _paper(int i) {
+    return Container(
+      margin: _paperEdge,
+      color: Colors.white,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _image(i),
+          // shade near the spine, like paper curving into the binding
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 22,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.black.withOpacity(0.22), Colors.black.withOpacity(0)],
                   ),
                 ),
-            ],
+              ),
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
+  }
+
+  /// The page underneath that is revealed as the top page lifts away.
+  Widget _underPage(int i, double p) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _paper(i),
+        IgnorePointer(
+          child: Container(
+            margin: _paperEdge,
+            color: Colors.black.withOpacity(0.32 * sin(p * pi)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// The page that folds over from the spine (left edge) with perspective and shadow.
+  Widget _turningPage(int i, double p) {
+    final m = Matrix4.identity()
+      ..setEntry(3, 2, 0.0014)
+      ..rotateY(-p * pi);
+    final seenFromBehind = p > 0.5;
+    return Transform(
+      alignment: Alignment.centerLeft,
+      transform: m,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _paper(i),
+          if (seenFromBehind)
+            Container(margin: _paperEdge, color: const Color(0xE6F1E8D6)),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Container(
+                margin: _paperEdge,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      Colors.black.withOpacity(0),
+                      Colors.black.withOpacity(0.3 * sin(p * pi)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _flipView(PdfDocument doc) {
+    final n = doc.pagesCount;
+    for (final i in [_page - 1, _page, _page + 1, _page + 2]) {
+      if (i >= 0 && i < n) _cache.putIfAbsent(i, () => _render(i));
+    }
+    return LayoutBuilder(builder: (c, box) {
+      final w = box.maxWidth;
+      final t = _t ?? _page;
+      final p = _t == null ? 0.0 : _p;
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapUp: (d) {
+          if (_t != null || _anim.isAnimating) return;
+          if (d.localPosition.dx > w / 2 && _page < n - 1) {
+            setState(() {
+              _t = _page;
+              _p = 0;
+            });
+            _settle(1.0);
+          } else if (d.localPosition.dx <= w / 2 && _page > 0) {
+            setState(() {
+              _t = _page - 1;
+              _p = 1;
+            });
+            _settle(0.0);
+          }
+        },
+        onHorizontalDragUpdate: (d) {
+          if (_anim.isAnimating) return;
+          if (_t == null) {
+            if (d.delta.dx < 0 && _page < n - 1) {
+              _t = _page;
+              _p = 0;
+            } else if (d.delta.dx > 0 && _page > 0) {
+              _t = _page - 1;
+              _p = 1;
+            } else {
+              return;
+            }
+          }
+          setState(() => _p = _c01(_p - d.delta.dx / (w * 0.85)));
+        },
+        onHorizontalDragEnd: (d) {
+          if (_t == null || _anim.isAnimating) return;
+          final v = d.primaryVelocity ?? 0;
+          final target = v < -400 ? 1.0 : (v > 400 ? 0.0 : (_p >= 0.5 ? 1.0 : 0.0));
+          _settle(target);
+        },
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (t + 1 < n) _underPage(t + 1, p),
+            _turningPage(t, p),
+          ],
+        ),
+      );
+    });
   }
 
   @override
   void dispose() {
-    _pc?.dispose();
+    _anim.dispose();
     _doc?.close();
     _player.dispose();
     super.dispose();
@@ -442,7 +730,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget build(BuildContext context) {
     final night = Store.night;
     final doc = _doc;
-    final pc = _pc;
 
     Widget body;
     if (_error != null) {
@@ -453,15 +740,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 22, color: Colors.white)),
       ));
-    } else if (doc == null || pc == null) {
+    } else if (doc == null) {
       body = const Center(child: CircularProgressIndicator());
     } else {
-      Widget pages = PageView.builder(
-        controller: pc,
-        itemCount: doc.pagesCount,
-        onPageChanged: _changed,
-        itemBuilder: (c, i) => _pageTile(i),
-      );
+      Widget pages = _flipView(doc);
       if (night) {
         pages = ColorFiltered(
           colorFilter: const ColorFilter.mode(Color(0xFFD9A066), BlendMode.multiply),
@@ -470,6 +752,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
       }
       body = pages;
     }
+
+    final shownPage = _t == null ? _page : (_p >= 0.5 ? _t! + 1 : _t!);
 
     return Scaffold(
       backgroundColor: night ? const Color(0xFF140E08) : const Color(0xFF4A3426),
@@ -489,7 +773,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         ],
       ),
       body: body,
-      bottomNavigationBar: (doc == null || pc == null)
+      bottomNavigationBar: doc == null
           ? null
           : Container(
               color: night ? const Color(0xFF1F160E) : const Color(0xFF2E1F14),
@@ -500,7 +784,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Page ${_page + 1} of ${doc.pagesCount}',
+                      'Page ${shownPage + 1} of ${doc.pagesCount}',
                       style: const TextStyle(
                           color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                     ),
@@ -508,13 +792,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       Slider(
                         min: 0,
                         max: (doc.pagesCount - 1).toDouble(),
-                        value: (_drag ?? _page.toDouble())
-                            .clamp(0, (doc.pagesCount - 1).toDouble())
-                            .toDouble(),
+                        value: min(max(_drag ?? _page.toDouble(), 0.0),
+                            (doc.pagesCount - 1).toDouble()),
                         onChanged: (v) => setState(() => _drag = v),
                         onChangeEnd: (v) {
                           setState(() => _drag = null);
-                          pc.jumpToPage(v.round());
+                          final target = v.round();
+                          if (target != _page && _t == null) {
+                            _player.play(AssetSource('page.wav'));
+                            _commit(target);
+                          }
                         },
                       ),
                   ],
