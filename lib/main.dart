@@ -335,7 +335,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Future<void> _openDoc() async {
     try {
       final d = await PdfDocument.openFile(widget.book.path);
-      final start = widget.book.lastPage.clamp(0, max(0, d.pagesCount - 1));
+      final start = widget.book.lastPage.clamp(0, max(0, d.pagesCount - 1)).toInt();
       widget.book.pages = d.pagesCount;
       await Store.save();
       await Store.markReadToday();
@@ -509,7 +509,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         min: 0,
                         max: (doc.pagesCount - 1).toDouble(),
                         value: (_drag ?? _page.toDouble())
-                            .clamp(0, (doc.pagesCount - 1).toDouble()),
+                            .clamp(0, (doc.pagesCount - 1).toDouble())
+                            .toDouble(),
                         onChanged: (v) => setState(() => _drag = v),
                         onChangeEnd: (v) {
                           setState(() => _drag = null);
