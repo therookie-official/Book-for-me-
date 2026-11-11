@@ -31,6 +31,19 @@ jobs:
           cp -r lib assets pubspec.yaml "$RUNNER_TEMP/pr/"
           sed -i 's/android:label="[^"]*"/android:label="Paper Reader"/' "$RUNNER_TEMP/pr/android/app/src/main/AndroidManifest.xml"
 
+      - name: Make all libraries compile against Android 36
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cat > ~/.gradle/init.d/compile-sdk.gradle <<'EOF'
+          gradle.beforeProject { p ->
+            p.afterEvaluate {
+              if (p.hasProperty('android')) {
+                p.android.compileSdk = 36
+              }
+            }
+          }
+          EOF
+
       - name: Build release APK
         working-directory: ${{ runner.temp }}/pr
         run: |
